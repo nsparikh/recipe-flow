@@ -16,7 +16,19 @@ import {
  * inactivity timeout. `zodOutputFormat` still gives a validated `parsed_output` at the end.
  */
 
-export const MODEL = "claude-opus-5";
+/**
+ * Model and effort are deliberately kept together here as the single place to tune cost.
+ *
+ * Sonnet 5 at medium effort is the current setting — extraction is a well-specified structured
+ * task, so the cheapest configuration that does it well is the right default while the prompt is
+ * still settling. `claude-opus-5` with `effort: "high"` is the quality ceiling if extraction starts
+ * missing dependencies; `effort: "low"` is the floor if cost matters more than nuance.
+ *
+ * Eventually worth exposing to users alongside their API key, since they pay for it.
+ */
+export const MODEL = "claude-sonnet-5";
+export const EFFORT = "medium" as const;
+
 export const MAX_REPAIR_ATTEMPTS = 2;
 const MAX_TOKENS = 32000;
 
@@ -85,7 +97,7 @@ export async function extractRecipeGraph(
         max_tokens: MAX_TOKENS,
         thinking: { type: "adaptive" },
         output_config: {
-          effort: "high",
+          effort: EFFORT,
           format: zodOutputFormat(RecipeGraphSchema),
         },
         system: [

@@ -24,7 +24,7 @@ flowchart a cook can follow while actually cooking.
 | Interactivity (MVP) | Static diagram, pan/zoom only | No cook-along state yet |
 | Persistence | `localStorage` | Holds the API key now; recipe history in M5. Stores the **graph**, never the rendered output |
 | Framework | Next.js 15 App Router on Vercel | Already scaffolded |
-| Model | `claude-opus-5` | Adaptive thinking, structured outputs, streamed |
+| Model | `claude-sonnet-5`, `effort: "medium"` | Chosen for cost while the prompt settles. One constant pair in `extract.ts`; Opus 5 / high is the quality ceiling |
 | Inferred prep steps | **Yes** — extraction decomposes ingredient-line prep into step nodes | Marked `inferred: true` |
 | Inferred times | **Yes** — estimate when the recipe is silent, distinguish subtly | `~` prefix convention, see §7 |
 | Sub-recipes | Nested subgraphs, **flat representation + group membership** | See §4 "Components" |
@@ -179,7 +179,12 @@ The core of the project.
 
 **Call shape** (`lib/extraction/extract.ts`):
 
-- Model `claude-opus-5`, adaptive thinking (`thinking: { type: "adaptive" }`), `effort: "high"`.
+- Model and effort are two exported constants at the top of `extract.ts` — the single place to tune
+  cost. Currently `claude-sonnet-5` at `effort: "medium"`, with adaptive thinking
+  (`thinking: { type: "adaptive" }`). Extraction is a well-specified structured task, so the
+  cheapest configuration that does it well is the right default while the prompt is still moving.
+  `claude-opus-5` at `effort: "high"` is the ceiling if extraction starts missing dependencies.
+  Worth eventually exposing to users alongside their key, since they pay for it.
 - Structured outputs via `output_config.format` using the SDK's `zodOutputFormat(RecipeGraphSchema)`
   helper, which converts the Zod schema and validates the response into `parsed_output`. No
   hand-written parser and no separate JSON Schema to keep in sync.
@@ -324,14 +329,34 @@ cannot fetch arbitrary recipe pages, CORS blocks it). Worth revisiting if this i
 people who already trust the deployer.
 
 **URL ingest** (`lib/extraction/fetch-page.ts`), in order:
-1. Fetch the page.
+1. Guard the URL (see below), then fetch with a 15s timeout and an honest user agent.
 2. Look for a `schema.org/Recipe` JSON-LD block. Most recipe sites publish one, and it gives clean
-   ingredients and instructions with no scraping heuristics. Big reliability win when present.
-3. Fall back to stripping `<script>`/`<style>`/nav, collapsing whitespace, capping at ~50k chars,
-   and letting Claude locate the recipe in the noise.
+   ingredients and instructions with no scraping heuristics. Verified against the reference
+   minestrone URL: clean ingredients and instructions, entities decoded, and the recipe's own stated
+   times pulled through.
+3. Fall back to stripping `<script>`/`<style>`/nav, collapsing whitespace, capping at 50k chars, and
+   letting the model locate the recipe in the noise.
 
-Known failure modes to surface clearly rather than paper over: paywalls, JS-rendered pages, and
-bot blocking. The paste path is always the fallback.
+`HowToSection` names in JSON-LD are preserved as `For the X:` headings, which is exactly the
+explicit sub-recipe marker the extraction prompt looks for (Q6). Structured data feeding component
+detection is a nice accident of the two designs lining up.
+
+Failure modes are surfaced specifically rather than as one generic error — paywalls (401/402), bot
+blocking (403), rate limiting (429), missing pages, non-HTML responses, and pages whose recipe never
+appears in the HTML. Every message points back to pasting, which always works.
+
+### SSRF guarding
+
+The server fetches whatever URL it is handed, so without a guard a visitor could use it to read
+addresses only the server can reach — cloud metadata endpoints being the classic target. Blocked:
+non-http(s) schemes, loopback, private IPv4 ranges, link-local (including `169.254.169.254`), IPv6
+unique-local and link-local, and dotless or `.local`/`.internal` names. Redirects are re-checked
+after the fact, since a public URL can redirect somewhere private.
+
+**Known limitation:** this checks the hostname as written. A public domain that *resolves* to a
+private address still gets through (DNS rebinding). Closing that needs resolve-then-check-then-connect
+against the resolved IP, which is more than a prototype warrants — but it is a real hole, and worth
+fixing before this is exposed to anyone untrusted.
 
 ## 9. Repo Structure
 
@@ -411,15 +436,16 @@ starting tight is the cheaper direction.
 with an explicitly headed "For the sauce:" section, and the subgraph render path is verified in the
 browser.
 
+**Resolved** — Q9: extraction verified working by hand against the live API (2026-08-26), using
+Opus 5 at high effort.
+
 **Currently open:**
 
-- **Q9 — Extraction quality against the golden fixture.** M3 is built but has never run against the
-  live API, so how closely real extraction matches the hand-authored minestrone graph is unmeasured.
-  This is the question the whole project turns on, and everything before it has been groundwork for
-  being able to ask it. The comparison is not simple pass/fail — two graphs can differ in node
-  granularity and both be defensible — so part of the work is deciding what "close enough" means.
-  Likely axes: does it find the same dependencies, does it split active from passive time
-  sensibly, does it infer the same prep steps.
+- **Q10 — Does Sonnet 5 at medium effort hold up?** The model was moved down from Opus 5 / high for
+  cost after Q9 was verified, so the verification does not carry over. The things most likely to
+  degrade are the judgement calls rather than the mechanics: whether prep steps get split at the
+  right granularity, whether active and passive time are separated correctly, and whether
+  non-obvious dependencies are spotted. Worth one comparison run against the minestrone fixture.
 
 ## 12. Milestones
 
@@ -439,7 +465,10 @@ browser.
   `app/api/extract/route.ts`, and a paste-and-extract UI. 68 unit tests, repair loop covered against
   a stubbed client. Users supply their own API key on the page (§8). **Still outstanding: a real
   extraction run, and a comparison against the golden fixture.**
-- **M4 — URL ingest.** JSON-LD path plus text fallback.
+- **M4 — URL ingest.** ✅ `lib/extraction/fetch-page.ts` (SSRF guard, JSON-LD extraction with
+  `HowToStep`/`HowToSection` handling, HTML fallback, specific failure messages), wired into the
+  route and a paste/URL tab switcher. 98 unit tests. The JSON-LD path is verified against the live
+  reference URL.
 - **M5 — Polish + deploy.** Warning surfacing, loading and error states, `localStorage` history,
   production deploy.
 

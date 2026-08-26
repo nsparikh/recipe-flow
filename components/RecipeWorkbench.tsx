@@ -19,8 +19,12 @@ type Status =
   | { kind: "extracting" }
   | { kind: "failed"; message: string; details?: string[] };
 
+type InputMode = "paste" | "url";
+
 export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
+  const [mode, setMode] = useState<InputMode>("paste");
   const [text, setText] = useState("");
+  const [url, setUrl] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [result, setResult] = useState<RecipeViewModel | null>(null);
   const [attempts, setAttempts] = useState<number | null>(null);
@@ -35,7 +39,8 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
 
   const shown = result ?? fixtures.find((f) => f.slug === activeFixture)?.view ?? null;
   const busy = status.kind === "extracting";
-  const canExtract = Boolean(apiKey) && Boolean(text.trim()) && !busy;
+  const hasInput = mode === "paste" ? Boolean(text.trim()) : Boolean(url.trim());
+  const canExtract = Boolean(apiKey) && hasInput && !busy;
 
   function handleSaveKey(key: string) {
     saveApiKey(key);
@@ -61,7 +66,7 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
           "Content-Type": "application/json",
           [API_KEY_HEADER]: apiKey,
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(mode === "paste" ? { text } : { url }),
       });
       const payload = await response.json();
 
@@ -86,6 +91,11 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
     }
   }
 
+  function switchMode(next: InputMode) {
+    setMode(next);
+    if (status.kind === "failed") setStatus({ kind: "idle" });
+  }
+
   function showFixture(slug: string) {
     setResult(null);
     setAttempts(null);
@@ -98,42 +108,89 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
       <ApiKeyPanel apiKey={apiKey} onSave={handleSaveKey} onForget={handleForgetKey} />
 
       <section className="input-panel">
-        <label htmlFor="recipe-text">Paste a recipe</label>
-        <textarea
-          id="recipe-text"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="Paste the ingredients and instructions here…"
-          rows={9}
-          disabled={busy}
-        />
+        <div className="mode-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "paste"}
+            className={mode === "paste" ? "active" : ""}
+            onClick={() => switchMode("paste")}
+          >
+            Paste text
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "url"}
+            className={mode === "url" ? "active" : ""}
+            onClick={() => switchMode("url")}
+          >
+            From a URL
+          </button>
+        </div>
+
+        {mode === "paste" ? (
+          <textarea
+            id="recipe-text"
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="Paste the ingredients and instructions here…"
+            rows={9}
+            disabled={busy}
+          />
+        ) : (
+          <>
+            <input
+              id="recipe-url"
+              className="url-input"
+              type="url"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && extract()}
+              placeholder="https://example.com/best-minestrone"
+              disabled={busy}
+              spellCheck={false}
+            />
+            <p className="hint url-hint">
+              Works best on sites that publish structured recipe data, which most do. Pages behind a
+              paywall, or that need JavaScript to show the recipe, will need pasting instead.
+            </p>
+          </>
+        )}
 
         <div className="input-actions">
           <button type="button" className="primary" onClick={extract} disabled={!canExtract}>
             {busy ? "Extracting…" : "Build the flowchart"}
           </button>
-          {!apiKey && text.trim() && <span className="hint">Add your API key above to extract.</span>}
-          {text.trim() && !busy && (
-            <button type="button" className="ghost" onClick={() => setText("")}>
+          {!apiKey && hasInput && <span className="hint">Add your API key above to extract.</span>}
+          {hasInput && !busy && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => (mode === "paste" ? setText("") : setUrl(""))}
+            >
               Clear
             </button>
           )}
-          <span className="hint">
-            Or load a sample:{" "}
-            {fixtures.map((fixture, index) => (
-              <span key={fixture.slug}>
-                {index > 0 && ", "}
-                <button type="button" className="link" onClick={() => setText(fixture.source)} disabled={busy}>
-                  {fixture.name}
-                </button>
-              </span>
-            ))}
-          </span>
+          {mode === "paste" && (
+            <span className="hint">
+              Or load a sample:{" "}
+              {fixtures.map((fixture, index) => (
+                <span key={fixture.slug}>
+                  {index > 0 && ", "}
+                  <button type="button" className="link" onClick={() => setText(fixture.source)} disabled={busy}>
+                    {fixture.name}
+                  </button>
+                </span>
+              ))}
+            </span>
+          )}
         </div>
 
         {busy && (
           <p className="progress">
-            Reading the recipe and working out the dependencies. This usually takes under a minute.
+            {mode === "url" ? "Fetching the page, then working" : "Working"} out the dependencies. This
+            usually takes under a minute.
           </p>
         )}
 

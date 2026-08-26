@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { extractRecipeGraph } from "../../../lib/extraction/extract";
 import { buildRecipeView } from "../../../lib/view-model";
 import { API_KEY_HEADER, looksLikeApiKey } from "../../../lib/api-key";
+import { fetchRecipeText, RecipeFetchError } from "../../../lib/extraction/fetch-page";
 
 /**
  * A high-effort extraction can run well past the default serverless limit. Streaming inside
@@ -14,20 +15,22 @@ export const maxDuration = 300;
 const MAX_INPUT_CHARS = 50_000;
 
 export async function POST(request: Request) {
-  let body: { text?: unknown };
+  let body: { text?: unknown; url?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
   }
 
-  const text = typeof body.text === "string" ? body.text.trim() : "";
-  if (!text) {
-    return NextResponse.json({ error: "Paste a recipe first." }, { status: 400 });
+  const pastedText = typeof body.text === "string" ? body.text.trim() : "";
+  const url = typeof body.url === "string" ? body.url.trim() : "";
+
+  if (!pastedText && !url) {
+    return NextResponse.json({ error: "Paste a recipe or give a URL first." }, { status: 400 });
   }
-  if (text.length > MAX_INPUT_CHARS) {
+  if (pastedText.length > MAX_INPUT_CHARS) {
     return NextResponse.json(
-      { error: `That recipe is ${text.length} characters. The limit is ${MAX_INPUT_CHARS}.` },
+      { error: `That recipe is ${pastedText.length} characters. The limit is ${MAX_INPUT_CHARS}.` },
       { status: 400 },
     );
   }
@@ -44,10 +47,29 @@ export async function POST(request: Request) {
     );
   }
 
+  // URL ingest is just an extra step in front of the same pipeline.
+  let text = pastedText;
+  let sourceUrl: string | undefined;
+  if (!text) {
+    try {
+      const fetched = await fetchRecipeText(url, { signal: request.signal });
+      text = fetched.text;
+      sourceUrl = fetched.finalUrl;
+    } catch (cause) {
+      if (cause instanceof RecipeFetchError) {
+        const status = cause.reason === "invalid-url" || cause.reason === "blocked-host" ? 400 : 502;
+        return NextResponse.json({ error: cause.message }, { status });
+      }
+      throw cause;
+    }
+  }
+
   try {
     const outcome = await extractRecipeGraph(text, { apiKey, signal: request.signal });
 
     if (outcome.ok) {
+      // The model never sees the URL, so it is stamped on afterwards.
+      if (sourceUrl) outcome.graph.sourceUrl = sourceUrl;
       return NextResponse.json({
         // The graph is returned alongside the view so the client can persist it (M5).
         graph: outcome.graph,

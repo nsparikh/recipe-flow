@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import type Anthropic from "@anthropic-ai/sdk";
 import { RecipeGraphSchema, type RecipeGraph } from "../../schema/recipe-graph";
-import { extractRecipeGraph } from "../extract";
+import { extractRecipeGraph, MODEL, EFFORT } from "../extract";
 import { buildRepairUserMessage, EXTRACTION_SYSTEM_PROMPT } from "../prompt";
 
 const raw = JSON.parse(readFileSync("fixtures/minestrone.graph.json", "utf8"));
@@ -151,13 +151,13 @@ describe("unusable responses", () => {
 });
 
 describe("request shape", () => {
-  it("uses Opus 5 with adaptive thinking and high effort", async () => {
+  it("sends the configured model and effort with adaptive thinking", async () => {
     const { client, calls } = fakeClient([{ parsed_output: validGraph() }]);
     await extractRecipeGraph("some recipe", { client });
 
-    expect(calls[0].model).toBe("claude-opus-5");
+    expect(calls[0].model).toBe(MODEL);
     expect(calls[0].thinking).toEqual({ type: "adaptive" });
-    expect((calls[0].output_config as Record<string, unknown>).effort).toBe("high");
+    expect((calls[0].output_config as Record<string, unknown>).effort).toBe(EFFORT);
     expect((calls[0].output_config as Record<string, unknown>).format).toBeDefined();
   });
 

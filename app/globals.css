@@ -365,3 +365,44 @@ button.link {
   font-size: 0.83rem;
   color: #a33;
 }
+
+/* --- Input mode tabs --- */
+
+.mode-tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mode-tabs button {
+  padding: 0.45rem 0.85rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 0.87rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.mode-tabs button:hover { color: var(--text); }
+
+.mode-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+}
+
+.url-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fdfcfa;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.url-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.url-hint { margin: 0.5rem 0 0; max-width: 72ch; line-height: 1.5; display: block; }
