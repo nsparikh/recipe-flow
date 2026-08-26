@@ -1,42 +1,14 @@
 import { MermaidDiagram } from "./MermaidDiagram";
 import type { RecipeView as RecipeViewModel } from "../lib/view-model";
 
-function formatMinutes(total: number): string {
-  const hours = Math.floor(total / 60);
-  const minutes = total % 60;
-  if (hours === 0) return `${minutes}m`;
-  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
-}
-
 /** Displays one recipe. Identical whether the graph came from a fixture or from extraction. */
 export function RecipeView({ view }: { view: RecipeViewModel }) {
-  const saved = view.summary.sequentialDurationMin - view.summary.projectDurationMin;
-
   return (
     <>
       <div className="recipe-title">
         <h2>{view.title}</h2>
         {view.servings && <p className="servings">Serves {view.servings}</p>}
       </div>
-
-      <section className="stats">
-        <div className="stat">
-          <span className="stat-value">{formatMinutes(view.summary.projectDurationMin)}</span>
-          <span className="stat-label">start to finish</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value">{formatMinutes(view.summary.totalActiveMin)}</span>
-          <span className="stat-label">hands-on</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value">{formatMinutes(view.summary.sequentialDurationMin)}</span>
-          <span className="stat-label">if done one step at a time</span>
-        </div>
-        <div className="stat highlight">
-          <span className="stat-value">{formatMinutes(saved)}</span>
-          <span className="stat-label">saved by working in parallel</span>
-        </div>
-      </section>
 
       {view.warnings.length > 0 && (
         <section className="warnings">

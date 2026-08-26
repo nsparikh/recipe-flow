@@ -37,7 +37,7 @@ main {
   font-size: 0.95rem;
 }
 
-.recipe-title { margin-top: 1.75rem; }
+.recipe-title { margin: 1.75rem 0 1rem; }
 .recipe-title h2 { margin: 0; font-size: 1.5rem; }
 
 .eyebrow {
@@ -81,27 +81,6 @@ main {
   color: #22384a;
   font-size: 0.8rem;
 }
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.75rem;
-  margin: 1.5rem 0;
-}
-
-.stat {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.9rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.stat.highlight { border-color: var(--accent); background: #f2f7f3; }
-.stat-value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.stat-label { font-size: 0.8rem; color: var(--muted); }
 
 .warnings {
   background: var(--warning-bg);
