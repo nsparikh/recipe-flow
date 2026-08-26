@@ -3,8 +3,16 @@
 import { useEffect, useState } from "react";
 import { RecipeView } from "./RecipeView";
 import { ApiKeyPanel } from "./ApiKeyPanel";
+import { HistoryBar } from "./HistoryBar";
 import { API_KEY_HEADER, forgetApiKey, loadApiKey, saveApiKey } from "../lib/api-key";
-import type { RecipeView as RecipeViewModel } from "../lib/view-model";
+import {
+  clearHistory,
+  forgetRecipe,
+  loadHistory,
+  rememberRecipe,
+  type HistoryEntry,
+} from "../lib/history";
+import { buildRecipeView, type RecipeView as RecipeViewModel } from "../lib/view-model";
 
 export interface FixtureEntry {
   slug: string;
@@ -30,11 +38,16 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
   const [attempts, setAttempts] = useState<number | null>(null);
   const [activeFixture, setActiveFixture] = useState<string | null>(fixtures[0]?.slug ?? null);
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
+  const [now, setNow] = useState<number | null>(null);
 
-  // localStorage is only available in the browser, so the key is read after mount rather than
-  // during render — otherwise the server and client markup would disagree.
+  // localStorage and the clock are browser-only, so both are read after mount rather than during
+  // render — otherwise the server and client markup would disagree.
   useEffect(() => {
     setApiKey(loadApiKey());
+    setHistory(loadHistory());
+    setNow(Date.now());
   }, []);
 
   const shown = result ?? fixtures.find((f) => f.slug === activeFixture)?.view ?? null;
@@ -83,12 +96,41 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
       setAttempts(payload.attempts ?? null);
       setActiveFixture(null);
       setStatus({ kind: "idle" });
+
+      // The graph is stored, not the rendering — restoring re-derives everything locally.
+      if (payload.graph) {
+        const savedAt = Date.now();
+        setNow(savedAt);
+        const next = rememberRecipe(payload.graph, savedAt);
+        setHistory(next);
+        setActiveHistoryId(next[0]?.id ?? null);
+      }
     } catch (cause) {
       setStatus({
         kind: "failed",
         message: cause instanceof Error ? cause.message : "Something went wrong.",
       });
     }
+  }
+
+  function restoreFromHistory(entry: HistoryEntry) {
+    // No network call: the whole pipeline downstream of extraction is pure and runs here.
+    setResult(buildRecipeView(entry.graph));
+    setActiveHistoryId(entry.id);
+    setActiveFixture(null);
+    setAttempts(null);
+    setNow(Date.now());
+    setStatus({ kind: "idle" });
+  }
+
+  function handleForgetRecipe(id: string) {
+    setHistory(forgetRecipe(id));
+    if (activeHistoryId === id) setActiveHistoryId(null);
+  }
+
+  function handleClearHistory() {
+    setHistory(clearHistory());
+    setActiveHistoryId(null);
   }
 
   function switchMode(next: InputMode) {
@@ -99,6 +141,7 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
   function showFixture(slug: string) {
     setResult(null);
     setAttempts(null);
+    setActiveHistoryId(null);
     setStatus({ kind: "idle" });
     setActiveFixture(slug);
   }
@@ -207,6 +250,15 @@ export function RecipeWorkbench({ fixtures }: { fixtures: FixtureEntry[] }) {
           </div>
         )}
       </section>
+
+      <HistoryBar
+        entries={history}
+        activeId={activeHistoryId}
+        now={now}
+        onRestore={restoreFromHistory}
+        onForget={handleForgetRecipe}
+        onClear={handleClearHistory}
+      />
 
       <section className="result-header">
         <nav className="fixture-switch">

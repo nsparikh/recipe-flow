@@ -22,7 +22,7 @@ flowchart a cook can follow while actually cooking.
 | Future renderers | Swimlanes, interactive canvas | Not built now, but the seam is designed in (see §6) |
 | API key | **User-supplied in the browser**, kept in `localStorage` | Sent per request as a header; never stored server-side |
 | Interactivity (MVP) | Static diagram, pan/zoom only | No cook-along state yet |
-| Persistence | `localStorage` | Holds the API key now; recipe history in M5. Stores the **graph**, never the rendered output |
+| Persistence | `localStorage` | API key, plus the last 10 extracted **graphs**. Never the rendered output |
 | Framework | Next.js 15 App Router on Vercel | Already scaffolded |
 | Model | `claude-sonnet-5`, `effort: "medium"` | Chosen for cost while the prompt settles. One constant pair in `extract.ts`; Opus 5 / high is the quality ceiling |
 | Inferred prep steps | **Yes** — extraction decomposes ingredient-line prep into step nodes | Marked `inferred: true` |
@@ -469,8 +469,15 @@ Opus 5 at high effort.
   `HowToStep`/`HowToSection` handling, HTML fallback, specific failure messages), wired into the
   route and a paste/URL tab switcher. 98 unit tests. The JSON-LD path is verified against the live
   reference URL.
-- **M5 — Polish + deploy.** Warning surfacing, loading and error states, `localStorage` history,
-  production deploy.
+- **M5 — Polish + deploy.** ✅ `lib/history.ts` + `components/HistoryBar.tsx` — the last 10
+  extractions kept in the browser as **graphs**, so reopening one re-renders locally with no API
+  call and no cost. Entries are re-validated on load and silently dropped if an older version of
+  the app wrote a shape that no longer parses. Quota failures degrade by dropping the oldest rather
+  than losing the write. Plus a README and the production deploy. 111 unit tests.
+
+Storing the graph rather than the rendering is what makes restore free — and it is the same property
+that would make graph editing (Q5) possible later, since everything downstream of extraction is a
+pure function of the graph.
 
 Ordering M2 before M3 is deliberate: it makes the rendering path debuggable against a known-good
 graph, so when extraction lands, any bad diagram is unambiguously an extraction problem.

@@ -406,3 +406,74 @@ button.link {
 
 .url-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .url-hint { margin: 0.5rem 0 0; max-width: 72ch; line-height: 1.5; display: block; }
+
+/* --- Recent recipes --- */
+
+.history { margin-top: 1.5rem; }
+
+.history-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.history-head h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.history-list li {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.history-list li.active {
+  border-color: var(--accent);
+  background: #f2f7f3;
+}
+
+.history-open {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.history-open:hover { color: var(--accent); }
+.history-title { font-weight: 500; }
+.history-time { font-size: 0.75rem; color: var(--muted); }
+
+.history-forget {
+  padding: 0 0.6rem 0 0.35rem;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.history-forget:hover { color: #a33; }
