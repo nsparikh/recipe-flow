@@ -18,11 +18,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@rolldown/binding-darwin-arm64": "^1.2.6",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.11"
+    "vitest": "^3.2.7"
   }
 }
