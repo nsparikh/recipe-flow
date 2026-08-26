@@ -9,9 +9,10 @@ import { RecipeGraphSchema, type RecipeGraph } from "./schema/recipe-graph";
  * against a known-good graph without spending API calls.
  */
 
+/** Order matters: the first entry is what loads by default. */
 export const FIXTURES = [
-  { slug: "minestrone", name: "Minestrone Soup" },
   { slug: "garlic-butter-pasta", name: "Garlic Butter Pasta" },
+  { slug: "minestrone", name: "Minestrone Soup" },
 ] as const;
 
 export type FixtureSlug = (typeof FIXTURES)[number]["slug"];
