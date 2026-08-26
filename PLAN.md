@@ -490,3 +490,82 @@ pure function of the graph.
 
 Ordering M2 before M3 is deliberate: it makes the rendering path debuggable against a known-good
 graph, so when extraction lands, any bad diagram is unambiguously an extraction problem.
+
+## 13. Future Directions — Interactivity
+
+Assessment only. Nothing here is built or committed to; it exists so the reasoning is not
+re-derived later. Three ideas are on the table:
+
+1. Click nodes/edges to mark steps complete
+2. Alternative visualisations — swimlanes, timeline
+3. In-app timers for timed steps
+
+### They cost very different amounts
+
+**Timers are rendering-independent.** React state plus an interval; they work in whatever view is
+on screen. The one real constraint is storing `endsAt` as wall clock rather than counting down a
+remaining value, so a timer survives tab backgrounding and page reload.
+
+**A timeline/swimlane view needs no graph layout at all.** `deriveTopology` already produces
+`earliestStartMin`, `durationMin`, `slackMin`, the active/passive split, and `byStation`. A swimlane
+is absolutely-positioned elements — x from time, y from station lane. No layout engine, no new
+dependency. It would also make the critical-path and slack data visible to the cook for the first
+time; today it only tints node borders.
+
+**Only interactive nodes on the node-link graph actually pressure Mermaid.**
+
+### Rendering options
+
+| Option | Cost | Ceiling |
+|---|---|---|
+| **A.** Bind events to Mermaid's rendered SVG | Low | Low — class toggling only |
+| **B.** React Flow (`@xyflow/react`) + `@dagrejs/dagre` or `elkjs` | Medium | High — nodes are React components |
+| **C.** Own layout + own SVG | High | High, but edge routing is the entire problem |
+| **D.** Cytoscape.js | Medium | Wrong shape — canvas nodes make embedded widgets awkward |
+
+**A is more viable than expected.** Verified against the live DOM: Mermaid preserves our identifiers
+in its output, rendering nodes as `mermaid-<renderId>-flowchart-ing_oil-0` and edges as
+`L_ing_onion_p1_0`, so SVG elements can be mapped back to graph nodes with a regex. Good enough to
+toggle a "done" class. It stops there: a countdown cannot live inside a Mermaid node, and Mermaid
+re-parses the whole diagram from source on any change, discarding DOM mutations. State cannot live
+in the diagram.
+
+**B is the standard answer for this shape of problem.** Nodes become React components, so a node can
+hold a checkbox, a countdown, a progress ring. Pan/zoom, selection, and sub-flows — which map onto
+our components — are built in. It does not do layout; pair it with `@dagrejs/dagre` (small, layered
+DAG, sufficient here) or `elkjs` (heavier, better edge routing and genuine hierarchical nesting).
+
+**C is a trap.** The easy half is already done — `depth` gives x-axis layering — but routing 42 edges
+without ugly crossings is precisely why dagre and ELK exist.
+
+### Architectural changes needed regardless of choice
+
+- **Ship the graph to the client, not a Mermaid string.** `buildRecipeView` currently renders Mermaid
+  server-side. Any interactive view needs the topology in the browser. Already proven safe: history
+  restore calls `buildRecipeView` client-side today, so the whole pipeline is known to run there.
+- **A view registry.** `RecipeTopology -> view` per renderer, plus a switcher. This is what §6's
+  renderer-agnostic seam was designed for.
+- **Cook session state is a separate concern from the graph.** The graph is the *recipe*; a session
+  is *this cooking of it* — completed steps, running timers, started-at. It must not be stored in
+  the graph. Persist per recipe id, which `lib/history.ts` already keys on.
+- **"What is unblocked right now"** is a small pure function over topology plus the completed set,
+  and it is the actual payoff — the thing a linear list cannot do and the graph can.
+
+### Suggested sequencing
+
+Ordered so the expensive dependency decision comes last, backed by evidence rather than guesswork:
+
+1. Ship graph to client + view registry (small enabler)
+2. Timeline/swimlane view (no new dependencies, makes existing computed data visible)
+3. Cook session state and step completion, on the timeline where checkboxes are natural
+4. Timers on the timeline — a passive simmer bar already *is* a timer, visually
+5. Only then decide whether the node-link graph needs interactivity, knowing whether anyone actually
+   cooks from it
+
+### Design question this surfaces
+
+A timeline makes the unlimited-hands assumption (§6) visible in a way the graph does not — the cook
+will see two bars overlapping that one person cannot physically do at once. That may call for a
+"single cook" mode that serialises active work, which is resource-constrained scheduling and
+materially harder than the critical-path method we have now. Worth deciding deliberately rather than
+discovering it in the UI.
