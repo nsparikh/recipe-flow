@@ -20,9 +20,9 @@ flowchart a cook can follow while actually cooking.
 | Input | Paste text **and** URL fetch | URL path tries JSON-LD first, falls back to stripped page text |
 | Renderer (MVP) | Mermaid | Rendered client-side. Topology layer stays renderer-agnostic for future views |
 | Future renderers | Swimlanes, interactive canvas | Not built now, but the seam is designed in (see §6) |
-| API key | Server-side env var (`ANTHROPIC_API_KEY`) | Never reaches the browser |
+| API key | **User-supplied in the browser**, kept in `localStorage` | Sent per request as a header; never stored server-side |
 | Interactivity (MVP) | Static diagram, pan/zoom only | No cook-along state yet |
-| Persistence | `localStorage` | Stores the **graph**, not the rendered output. Keyed by input hash |
+| Persistence | `localStorage` | Holds the API key now; recipe history in M5. Stores the **graph**, never the rendered output |
 | Framework | Next.js 15 App Router on Vercel | Already scaffolded |
 | Model | `claude-opus-5` | Adaptive thinking, structured outputs, streamed |
 | Inferred prep steps | **Yes** — extraction decomposes ingredient-line prep into step nodes | Marked `inferred: true` |
@@ -180,10 +180,13 @@ The core of the project.
 **Call shape** (`lib/extraction/extract.ts`):
 
 - Model `claude-opus-5`, adaptive thinking (`thinking: { type: "adaptive" }`), `effort: "high"`.
-- Structured outputs via `output_config.format` with the JSON Schema derived from Zod, so the
-  response validates against the schema at the API layer rather than in a hand-written parser.
+- Structured outputs via `output_config.format` using the SDK's `zodOutputFormat(RecipeGraphSchema)`
+  helper, which converts the Zod schema and validates the response into `parsed_output`. No
+  hand-written parser and no separate JSON Schema to keep in sync.
 - **Streamed**, with `.finalMessage()` to collect the result. Two reasons: a full graph is a large
   output, and streaming holds the connection open past Vercel's function timeout (see §10).
+  `max_tokens` is 32000 — comfortably above a full recipe graph.
+- The client is injectable, so the repair loop is unit-tested against a stub with no API calls.
 - Prompt caching on the system prompt (it's static and large — schema explanation, ID conventions,
   worked example), so repair-loop retries and repeated extractions hit cache.
 
@@ -300,9 +303,25 @@ stages 1–4.
 
 | Route | Method | In | Out |
 |---|---|---|---|
-| `/api/extract` | POST | `{ text }` or `{ url }` | `{ graph, warnings, mermaid }` or `{ errors }` |
+| `/api/extract` | POST | `{ text }` or `{ url }`, plus `x-anthropic-api-key` | `{ graph, view, usage }` or `{ error, errors }` |
 
 One route, because the URL path is just an extra ingest step in front of the same pipeline.
+
+### API key handling
+
+Every user brings their own Anthropic key. It is entered on the page, kept in that browser's
+`localStorage`, and sent as the `x-anthropic-api-key` header on each extraction request. The server
+uses it to construct the client for that one call and never logs, stores, or environment-reads it —
+there is deliberately no `ANTHROPIC_API_KEY` fallback, so nobody can accidentally spend someone
+else's credits.
+
+**The trade-off, stated plainly:** the key does travel through the server, because that is where the
+Anthropic call is made. Anyone given the deployed URL is trusting that server with their key. The
+alternative is calling Anthropic straight from the browser with the SDK's `dangerouslyAllowBrowser`
+flag, which keeps the key on the user's machine entirely — at the cost of shipping the extraction
+pipeline to the client and losing the server-side seam that M4's URL fetch needs anyway (browsers
+cannot fetch arbitrary recipe pages, CORS blocks it). Worth revisiting if this is ever shared beyond
+people who already trust the deployer.
 
 **URL ingest** (`lib/extraction/fetch-page.ts`), in order:
 1. Fetch the page.
@@ -318,30 +337,36 @@ bot blocking. The paste path is always the fallback.
 
 ```
 app/
-  page.tsx                    # input form + result view
-  api/extract/route.ts
+  page.tsx                    # loads fixtures, renders the workbench
+  api/extract/route.ts        # POST { text } -> { graph, view, usage }
+  globals.css
 lib/
-  schema/recipe-graph.ts      # Zod schemas → TS types → JSON Schema
+  schema/recipe-graph.ts      # Zod schemas -> TS types (and the API output format)
   extraction/
-    prompt.ts
-    extract.ts                # Claude call + repair loop
-    fetch-page.ts             # URL → recipe text
+    prompt.ts                 # cached system prompt + repair turn
+    extract.ts                # streamed Claude call + repair loop
+    fetch-page.ts             # URL -> recipe text                      (M4)
   graph/
     validate.ts
     topology.ts
   render/
     mermaid.ts
+  view-model.ts               # graph -> everything the UI needs
+  fixtures.ts                 # server-side fixture loading
 components/
-  RecipeInput.tsx
+  RecipeWorkbench.tsx         # paste box, extraction state, fixture switcher
+  RecipeView.tsx              # one recipe, fixture or extracted alike
   MermaidDiagram.tsx
-  WarningList.tsx
 fixtures/
-  minestrone.txt              # source text
-  minestrone.graph.json       # hand-authored expected graph (golden fixture)
+  minestrone.{txt,graph.json}            # golden fixture, no components
+  garlic-butter-pasta.{txt,graph.json}   # golden fixture, one headed sub-recipe
 docs/
   architecture-sketch.jpeg
   data-model-sketch.jpeg
 ```
+
+`RecipeView` is the reason fixtures and extractions look identical on screen: both paths build the
+same `RecipeView` model, so the display component has no idea which it is showing.
 
 ## 10. Risks & Constraints
 
@@ -349,9 +374,11 @@ docs/
   Mitigation: stream the Claude response (holds the connection open) and set `maxDuration` on the
   route. If it's still tight, the fallback is to stream progress to the client rather than
   request/response.
-- **Cost per extraction.** Opus 5 with high effort on a full recipe is a real per-call cost, and the
-  deployed key is yours. Prompt caching helps on retries. If the URL gets shared around, add a rate
-  limit.
+- **Cost per extraction.** Opus 5 with high effort on a full recipe is a real per-call cost, but it
+  lands on the key of whoever ran it, not on the deployer. Prompt caching helps on repair retries.
+- **Keys in `localStorage`.** Convenient and appropriate for a prototype, but it means the key
+  survives until explicitly forgotten and is readable by any script running on the page. The
+  "Forget" control exists for shared machines. Not a pattern to carry into production untouched.
 - **Extraction quality is the whole project.** The failure mode to watch is a *plausible* graph with
   a subtly wrong dependency — worse than an obviously broken one, because validation can't catch it.
   The golden fixture exists to make regressions visible.
@@ -384,7 +411,15 @@ starting tight is the cheaper direction.
 with an explicitly headed "For the sauce:" section, and the subgraph render path is verified in the
 browser.
 
-**Currently open:** none. New questions get added here as they arise.
+**Currently open:**
+
+- **Q9 — Extraction quality against the golden fixture.** M3 is built but has never run against the
+  live API, so how closely real extraction matches the hand-authored minestrone graph is unmeasured.
+  This is the question the whole project turns on, and everything before it has been groundwork for
+  being able to ask it. The comparison is not simple pass/fail — two graphs can differ in node
+  granularity and both be defensible — so part of the work is deciding what "close enough" means.
+  Likely axes: does it find the same dependencies, does it split active from passive time
+  sensibly, does it infer the same prep steps.
 
 ## 12. Milestones
 
@@ -398,8 +433,12 @@ browser.
   and a fixture-preview page with a recipe switcher, timing summary and legend. 58 unit tests.
   Both fixtures verified rendering in the browser, including the component subgraph path.
   No API calls spent.
-- **M3 — Extraction (paste).** Claude call, structured outputs, repair loop, wired to the UI.
-  First real end-to-end run. Compare output against the golden fixture.
+- **M3 — Extraction (paste).** ✅ *Built, not yet run against the live API.*
+  `lib/extraction/prompt.ts` (cached system prompt with the extraction rules and a worked example),
+  `lib/extraction/extract.ts` (streamed Opus 5 call, structured outputs, bounded repair loop),
+  `app/api/extract/route.ts`, and a paste-and-extract UI. 68 unit tests, repair loop covered against
+  a stubbed client. Users supply their own API key on the page (§8). **Still outstanding: a real
+  extraction run, and a comparison against the golden fixture.**
 - **M4 — URL ingest.** JSON-LD path plus text fallback.
 - **M5 — Polish + deploy.** Warning surfacing, loading and error states, `localStorage` history,
   production deploy.

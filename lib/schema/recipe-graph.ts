@@ -111,6 +111,3 @@ export type GraphNode = IngredientNode | StepNode;
 export function isIngredientNode(node: GraphNode): node is IngredientNode {
   return node.type === "ingredient";
 }
-
-/** JSON Schema for the extraction call's `output_config.format`. */
-export const recipeGraphJsonSchema = z.toJSONSchema(RecipeGraphSchema);
