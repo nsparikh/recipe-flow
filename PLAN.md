@@ -251,13 +251,28 @@ the raw graph, and nothing view-specific:
 - `byStation` — grouping for the future swimlane view
 - `byComponent` — grouping for subgraph rendering, plus each component's derived terminal step
 - `flags` — `isTerminal`, `isPassive`, `isOptional`, `isInferred`, `onCriticalPath`
+- `projectDurationMin` — wall clock with perfect parallelism (the critical path length)
+- `sequentialDurationMin` — wall clock doing every step one at a time
+- `totalActiveMin` / `totalPassiveMin` — hands-on versus unattended
+
+The gap between `sequentialDurationMin` and `projectDurationMin` is the number that justifies the
+whole app. For the minestrone fixture it is 82 minutes versus 62 — twenty minutes recovered purely
+by reordering work the recipe already described.
 
 The Mermaid renderer only consumes a slice of this. The rest exists so the swimlane and cook-along
 views can be added without touching extraction or validation.
 
-**Caveat worth tracking:** since times may be estimated (Q2), anything derived from them —
-`criticalPath`, `slack`, `earliestStart` — is partly estimated too. The scheduling output is a
-useful guide, not a promise, and the UI shouldn't present it as precise.
+**Two caveats worth tracking:**
+
+1. Since times may be estimated (Q2), anything derived from them — `criticalPath`, `slack`,
+   `earliestStart` — is partly estimated too. The scheduling output is a useful guide, not a
+   promise, and the UI shouldn't present it as precise.
+2. The schedule is classic critical-path method, which **assumes unlimited hands**. It reports the
+   theoretical best case: every independent step running at once. One cook cannot chop an onion and
+   mince garlic simultaneously, so real elapsed time lands between `projectDurationMin` and
+   `sequentialDurationMin`. Modelling a single cook properly is resource-constrained scheduling,
+   which is a much harder problem and deliberately out of scope. Worth revisiting if the numbers
+   start feeling dishonest in practice.
 
 ## 7. Rendering
 
@@ -345,8 +360,10 @@ docs/
   inferred step is indistinguishable from a real one to a cook who hasn't read the source. The `~`
   marker and the inferred-step styling are the mitigation; honest estimates matter more than
   confident ones.
-- **Mermaid layout on large graphs.** ~40 nodes renders acceptably; nested subgraphs plus a denser
-  recipe may push the custom layout renderer earlier than planned.
+- **Mermaid layout on large graphs.** Measured at M2: the 39-node minestrone graph lays out to a
+  4327px-wide SVG. It is legible and pan/zoom handles it, but `LR` grows wide fast, and a denser
+  recipe plus nested subgraphs may push the custom layout renderer earlier than planned. Switching
+  to `TB` is a one-line option change if that helps.
 
 ## 11. Open Questions
 
@@ -363,11 +380,11 @@ Both are deliberately conservative, and both are looseable later without a schem
 fields already exist, only the prompt would change. The reverse would not be true, which is why
 starting tight is the cheaper direction.
 
-**Currently open:**
+**Resolved in M2** — Q8 component fixture coverage: `fixtures/garlic-butter-pasta.*` adds a recipe
+with an explicitly headed "For the sauce:" section, and the subgraph render path is verified in the
+browser.
 
-- **Q8 — Component fixture coverage.** The minestrone fixture has no sub-recipes, so `components`
-  and `componentId` are exercised only in their empty state. A second fixture with an explicitly
-  headed sub-recipe is needed before M3 to prove the nesting path end to end.
+**Currently open:** none. New questions get added here as they arise.
 
 ## 12. Milestones
 
@@ -376,8 +393,11 @@ starting tight is the cheaper direction.
   minestrone fixture (`fixtures/`), validation rules (`lib/graph/validate.ts`), 25 unit tests.
   No LLM involved. The fixture is 21 ingredients / 18 steps / 42 edges, matching the reference
   diagram, and validates clean with zero warnings.
-- **M2 — Topology + Mermaid renderer.** Render the fixture graph end-to-end to a diagram in the
-  browser. Proves the render path without spending a single API call.
+- **M2 — Topology + Mermaid renderer.** ✅ `lib/graph/topology.ts` (CPM scheduling, critical path,
+  slack, layers, station and component grouping), `lib/render/mermaid.ts`, `components/MermaidDiagram.tsx`,
+  and a fixture-preview page with a recipe switcher, timing summary and legend. 58 unit tests.
+  Both fixtures verified rendering in the browser, including the component subgraph path.
+  No API calls spent.
 - **M3 — Extraction (paste).** Claude call, structured outputs, repair loop, wired to the UI.
   First real end-to-end run. Compare output against the golden fixture.
 - **M4 — URL ingest.** JSON-LD path plus text fallback.

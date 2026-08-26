@@ -1,0 +1,36 @@
+{
+  "title": "Spaghetti with Garlic Butter Sauce",
+  "servings": "2",
+  "components": [
+    { "id": "cmp_sauce", "title": "Sauce" }
+  ],
+  "ingredients": [
+    { "id": "ing_spaghetti", "type": "ingredient", "name": "spaghetti", "quantity": "200 g", "amount": 200, "unit": "gram", "optional": false },
+    { "id": "ing_salt", "type": "ingredient", "name": "fine sea salt", "quantity": "1 teaspoon", "amount": 1, "unit": "teaspoon", "optional": false },
+    { "id": "ing_butter", "type": "ingredient", "name": "unsalted butter", "quantity": "4 tablespoons", "amount": 4, "unit": "tablespoon", "optional": false, "componentId": "cmp_sauce" },
+    { "id": "ing_garlic", "type": "ingredient", "name": "garlic", "quantity": "3 cloves", "amount": 3, "unit": "clove", "optional": false, "componentId": "cmp_sauce" },
+    { "id": "ing_parsley", "type": "ingredient", "name": "flat-leaf parsley", "quantity": "2 tablespoons", "amount": 2, "unit": "tablespoon", "optional": false, "componentId": "cmp_sauce" }
+  ],
+  "steps": [
+    { "id": "p1", "type": "prep", "label": "Mince garlic", "sourceInstruction": "3 cloves garlic, minced", "station": "counter", "activeTimeMin": 2, "optional": false, "componentId": "cmp_sauce", "inferred": true, "activeTimeEstimated": true, "passiveTimeEstimated": false },
+    { "id": "p2", "type": "prep", "label": "Chop parsley", "sourceInstruction": "2 tablespoons flat-leaf parsley, chopped", "station": "counter", "activeTimeMin": 2, "optional": false, "componentId": "cmp_sauce", "inferred": true, "activeTimeEstimated": true, "passiveTimeEstimated": false },
+    { "id": "s1", "type": "cook", "label": "Boil and drain the spaghetti", "details": "Until al dente.", "sourceInstruction": "Boil the spaghetti in well-salted water until al dente, about 10 minutes. Drain.", "station": "stove", "equipment": ["stockpot", "colander"], "activeTimeMin": 2, "passiveTimeMin": 10, "optional": false, "inferred": false, "activeTimeEstimated": true, "passiveTimeEstimated": false },
+    { "id": "s2", "type": "cook", "label": "Melt butter with garlic", "details": "Cook gently until fragrant.", "sourceInstruction": "Meanwhile, melt the butter in a small pan over low heat and add the garlic. Cook gently until fragrant, about 3 minutes.", "station": "stove", "equipment": ["small pan"], "activeTimeMin": 3, "temperature": "low", "optional": false, "componentId": "cmp_sauce", "inferred": false, "activeTimeEstimated": false, "passiveTimeEstimated": false },
+    { "id": "s3", "type": "assemble", "label": "Stir parsley into the sauce", "sourceInstruction": "Stir the parsley into the sauce.", "station": "stove", "activeTimeMin": 1, "optional": false, "componentId": "cmp_sauce", "inferred": false, "activeTimeEstimated": true, "passiveTimeEstimated": false },
+    { "id": "s4", "type": "assemble", "label": "Toss pasta with sauce", "sourceInstruction": "Toss the drained pasta with the sauce and serve.", "station": "counter", "activeTimeMin": 2, "optional": false, "inferred": false, "activeTimeEstimated": true, "passiveTimeEstimated": false }
+  ],
+  "edges": [
+    { "from": "ing_garlic", "to": "p1", "type": "ingredient", "quantity": "3 cloves" },
+    { "from": "ing_parsley", "to": "p2", "type": "ingredient", "quantity": "2 tablespoons" },
+    { "from": "ing_spaghetti", "to": "s1", "type": "ingredient", "quantity": "200 g" },
+    { "from": "ing_salt", "to": "s1", "type": "ingredient", "quantity": "1 teaspoon" },
+    { "from": "ing_butter", "to": "s2", "type": "ingredient", "quantity": "4 tablespoons" },
+    { "from": "p1", "to": "s2", "type": "intermediate", "label": "minced garlic" },
+    { "from": "s2", "to": "s3", "type": "intermediate", "label": "garlic butter" },
+    { "from": "p2", "to": "s3", "type": "intermediate", "label": "chopped parsley" },
+    { "from": "s1", "to": "s4", "type": "intermediate", "label": "drained pasta" },
+    { "from": "s3", "to": "s4", "type": "intermediate", "label": "sauce" }
+  ],
+  "terminalStepIds": ["s4"],
+  "warnings": []
+}

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Recipe Flow",
-  description: "Recipe Flow",
+  description: "Recipes as dependency graphs, not lists.",
 };
 
 export default function RootLayout({
