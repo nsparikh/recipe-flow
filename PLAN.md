@@ -1,6 +1,8 @@
 # Recipe Flow — Technical Plan
 
 > Working document. Updated as decisions are made. Last updated: 2026-08-26.
+>
+> **Live:** https://recipe-flow-alpha.vercel.app
 
 ## 1. Problem & Goal
 
@@ -473,7 +475,14 @@ Opus 5 at high effort.
   extractions kept in the browser as **graphs**, so reopening one re-renders locally with no API
   call and no cost. Entries are re-validated on load and silently dropped if an older version of
   the app wrote a shape that no longer parses. Quota failures degrade by dropping the oldest rather
-  than losing the write. Plus a README and the production deploy. 111 unit tests.
+  than losing the write. Plus a README and the production deploy, live at
+  https://recipe-flow-alpha.vercel.app. 111 unit tests.
+
+  The first deploy failed at `npm install`: `@rolldown/binding-darwin-arm64` — added earlier to work
+  around an npm bug that stopped vitest 4 finding its native binding locally — declares
+  `os: darwin`, so it broke Vercel's Linux builders outright. Fixed by moving to vitest 3, which
+  builds on vite/esbuild rather than rolldown, removing the need for the workaround. `package.json`
+  now contains nothing platform-specific.
 
 Storing the graph rather than the rendering is what makes restore free — and it is the same property
 that would make graph editing (Q5) possible later, since everything downstream of extraction is a

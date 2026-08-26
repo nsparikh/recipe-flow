@@ -1,5 +1,8 @@
 # Recipe Flow
 
+**Live at [recipe-flow-alpha.vercel.app](https://recipe-flow-alpha.vercel.app)** — bring your own
+Anthropic API key.
+
 A recipe is a linear document describing a process that isn't linear. Standard recipes bury the
 dependency structure — what blocks what, what can run in parallel, which waits you could be cooking
 through — inside prose ordering.
